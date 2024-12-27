@@ -1,0 +1,160 @@
+#!/bin/bash
+
+# Configuration file
+CONFIG_FILE="radio_stations.conf"
+
+# ASCII easter egg
+# Source: https://ascii-generator.site/t/
+show_ascii_art() {
+    cat << "EOF"
+
+### ##     ##     ### ##     ####    ## ##            ### ##   ### ###   ## ##    ## ##   ### ##   ### ##   ### ###  ### ##   
+ ##  ##     ##     ##  ##     ##    ##   ##            ##  ##   ##  ##  ##   ##  ##   ##   ##  ##   ##  ##   ##  ##   ##  ##  
+ ##  ##   ## ##    ##  ##     ##    ##   ##            ##  ##   ##      ##       ##   ##   ##  ##   ##  ##   ##       ##  ##  
+ ## ##    ##  ##   ##  ##     ##    ##   ##            ## ##    ## ##   ##       ##   ##   ## ##    ##  ##   ## ##    ## ##   
+ ## ##    ## ###   ##  ##     ##    ##   ##            ## ##    ##      ##       ##   ##   ## ##    ##  ##   ##       ## ##   
+ ##  ##   ##  ##   ##  ##     ##    ##   ##            ##  ##   ##  ##  ##   ##  ##   ##   ##  ##   ##  ##   ##  ##   ##  ##  
+#### ##  ###  ##  ### ##     ####    ## ##            #### ##  ### ###   ## ##    ## ##   #### ##  ### ##   ### ###  #### ##  
+                                                                      
+EOF
+}
+
+# Global strings to store stations and their links
+# Source: https://chris-lamb.co.uk/posts/joining-strings-in-posix-shell
+STATIONS=""
+STATION_LINKS=""
+LENGTH=0
+
+# Load stations from the configuration file
+load_stations() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "Error: Configuration file '$CONFIG_FILE' does not exist!"
+        exit 1
+    fi
+
+    while IFS='=' read -r name link; do
+        # Add separator only if stations are already present
+        if [ -z "$STATIONS" ]; then
+            STATIONS="$name"
+            STATION_LINKS="$link"
+        else
+            STATIONS="$STATIONS|$name"
+            STATION_LINKS="$STATION_LINKS|$link"
+        fi
+        LENGTH=$((LENGTH + 1))
+    done < "$CONFIG_FILE"
+}
+
+# Show help message
+show_help() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  -h, --help     Show this help message"
+    echo "  -l, --list     Show a list of available stations"
+    echo "  -r, --record STATION_ID  Start recording a specific station"
+    echo "  -s, --show   [STATION_ID]  Show recordings (optionally for a specific station)"
+}
+
+# Show recordings
+show_recordings() {
+    local station_id=$1
+    if [ -z "$station_id" ]; then
+        echo "Showing all recordings:"
+        ls -1 recording_*.mp3 2>/dev/null || echo "No recordings found."
+    else
+        local station_name=$(get_station_by_index "$station_id")
+        echo "Showing recordings for station: $station_name"
+        ls -1 recording_"$station_name"_*.mp3 2>/dev/null || echo "No recordings found for this station."
+    fi
+}
+
+# Process command-line arguments
+# Source: https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
+process_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -l|--list)
+                show_stations
+                exit 0
+                ;;
+            -e|--easter)
+                show_ascii_art
+                exit 0
+                ;;
+            -r|--record)
+                if [ -n "$2" ]; then
+                    start_recording "$2"
+                else
+                    echo "Error: Missing station ID"
+                    exit 1
+                fi
+                shift
+                ;;
+            -s|--show)
+                if [ -n "$2" ]; then
+                  show_recordings "$2"
+                else
+                  show_recordings
+                fi
+                shift
+                ;;
+            *)
+                echo "Unknown parameter: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
+# Show available stations
+# Source: https://stackoverflow.com/questions/35385962/arrays-in-a-posix-compliant-shell
+show_stations() {
+    echo "Available stations:"
+    i=0
+    echo "$STATIONS" | tr '|' '\n' | while read -r station; do
+        echo "[$i] -> $station"
+        i=$((i + 1))
+    done
+}
+
+get_station_by_index() {
+    local index=$1
+    echo "$STATIONS" | cut -d'|' -f$((index + 1))
+}
+
+get_station_link_by_index() {
+    local index=$1
+    echo "$STATION_LINKS" | cut -d'|' -f$((index + 1))
+}
+
+# Start recording
+start_recording() {
+    local index=$1
+    if [ "$index" -ge "$LENGTH" ] || [ "$index" -lt 0 ]; then
+        echo "Error: Invalid station ID"
+        exit 1
+    else
+        local station_name=$(get_station_by_index "$index")
+        local url=$(get_station_link_by_index "$index")
+        local timestamp=$(date +"%Y%m%d_%H%M%S")
+        local filename="recording_${station_name}_${timestamp}.mp3"
+
+        echo "Starting recording for station: $station_name"
+        echo "Recording to file: $filename"
+        echo "Press Ctrl+C to stop"
+
+        trap 'echo -e "\nRecording stopped."; exit 0' INT
+
+        wget -q --show-progress --timeout=10 --tries=0 --continue "$url" -O "$filename"
+    fi
+}
+
+# Run the script
+load_stations
+process_args "$@"
