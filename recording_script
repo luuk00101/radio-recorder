@@ -151,7 +151,7 @@ start_recording() {
 
         trap 'echo -e "\nRecording stopped."; exit 0' INT
 
-        wget -q --show-progress --timeout=10 --tries=0 --continue "$url" -O "$filename"
+        wget -q --show-progress --timeout=10 --tries=3  "$url" -O "$filename"
     fi
 }
 
