@@ -71,12 +71,12 @@ show_recordings() {
 # Process command-line arguments
 # Source: https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
 process_args() {
-    while [[ $# -gt 0 ]]; do
+    while [[ $# -gt 0 ]]; do # while we have flags
         case $1 in
             -h|--help)
                 show_help
                 exit 0
-                ;;
+                ;; # end of the case block (basically break)
             -l|--list)
                 show_stations
                 exit 0
@@ -92,7 +92,7 @@ process_args() {
                     echo "Error: Missing station ID"
                     exit 1
                 fi
-                shift
+                shift # we shift here to get rid of the start_recording ID
                 ;;
             -s|--show)
                 if [ -n "$2" ]; then
@@ -108,7 +108,7 @@ process_args() {
                 exit 1
                 ;;
         esac
-        shift
+        shift # shift here to get rid of the command flag
     done
 }
 
@@ -116,7 +116,7 @@ process_args() {
 # Source: https://stackoverflow.com/questions/35385962/arrays-in-a-posix-compliant-shell
 show_stations() {
     echo "Available stations:"
-    i=0
+    i=1
     echo "$STATIONS" | tr '|' '\n' | while read -r station; do
         echo "[$i] -> $station"
         i=$((i + 1))
@@ -125,18 +125,18 @@ show_stations() {
 
 get_station_by_index() {
     local index=$1
-    echo "$STATIONS" | cut -d'|' -f$((index + 1))
+    echo "$STATIONS" | cut -d'|' -f"$index"
 }
 
 get_station_link_by_index() {
     local index=$1
-    echo "$STATION_LINKS" | cut -d'|' -f$((index + 1))
+    echo "$STATION_LINKS" | cut -d'|' -f"$index"
 }
 
 # Start recording
 start_recording() {
     local index=$1
-    if [ "$index" -ge "$LENGTH" ] || [ "$index" -lt 0 ]; then
+    if [ "$index" -gt "$LENGTH" ] || [ "$index" -le 0 ]; then
         echo "Error: Invalid station ID"
         exit 1
     else
@@ -149,7 +149,7 @@ start_recording() {
         echo "Recording to file: $filename"
         echo "Press Ctrl+C to stop"
 
-        trap 'echo -e "\nRecording stopped."; exit 0' INT
+        trap 'echo -e "\nRecording stopped."; exit 0' INT # wait for SIGINT (Ctrl+C)
 
         wget -q --show-progress --timeout=10 --tries=3  "$url" -O "$filename"
     fi
